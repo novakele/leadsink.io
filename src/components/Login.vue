@@ -29,7 +29,7 @@ function formatRecipient(name: string, email: string) {
 
   // Quote names that contain special characters
   const needsQuotes = /[",]/.test(cleanName);
-  const quoted = needsQuotes ? `"${cleanName.replaceAll('"', '\\"')}"` : cleanName;
+  const quoted = needsQuotes ? `"${cleanName.replace(/"/g, '\\"')}"` : cleanName;
 
   return `${quoted} <${email}>`;
 }
@@ -80,10 +80,11 @@ async function loadOutboundOverachiever() {
   }
 
   const rows = (data as OutboundOverachieverRow[]) ?? [];
-  if (!rows.length) return;
+  const first = rows[0];
+ if (!first) return;
 
-  ooName.value = rows[0].display_name ?? "(no name)";
-  ooEmail.value = rows[0].email ?? "";
+ooName.value = first.display_name ?? "(no name)";
+ooEmail.value = first.email ?? "—";
 }
 
 async function sendMagicLink() {

@@ -44,6 +44,7 @@ async function loadRandomPlaceholders() {
   if (err || !data || data.length === 0) return;
 
   const pick = data[Math.floor(Math.random() * data.length)];
+  if (!pick) return; // ✅ satisfies TS
 
   const full = buildFullName(pick.first_name ?? null, pick.last_name ?? null);
   if (full) namePlaceholder.value = full;
