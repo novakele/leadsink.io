@@ -16,11 +16,6 @@ const error = ref<string | null>(null);
 const query = ref("");
 const copiedId = ref<string | null>(null);
 
-function formatCreated(ts: string) {
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-}
-
 function normalize(s: string) {
   return s.trim().toLowerCase();
 }
@@ -78,7 +73,7 @@ async function copyEmail(id: string, email: string) {
     copiedId.value = id;
     window.setTimeout(() => {
       if (copiedId.value === id) copiedId.value = null;
-    }, 900);
+    }, 1100);
   } catch {
     // swallow; you can optionally set an error message
   }
@@ -113,7 +108,6 @@ onMounted(loadLeads);
   <tr>
     <th class="name-col">Name</th>
     <th class="email-col">Email</th>
-    <th class="right created-col">Created</th>
   </tr>
 </thead>
 
@@ -126,15 +120,24 @@ onMounted(loadLeads);
     <td class="email-cell email-col" data-label="Email">
       <code class="mono email-text">{{ l.email }}</code>
 
-      <button class="copy-btn" @click="copyEmail(l.id, l.email)">
-        <span v-if="copiedId === l.id">Copied</span>
-        <span v-else>Copy</span>
+      <button
+        class="copy-btn"
+        :class="{ 'is-copied': copiedId === l.id }"
+        type="button"
+        @click="copyEmail(l.id, l.email)"
+        aria-label="Copy email"
+        title="Copy email"
+      >
+        <svg v-if="copiedId !== l.id" class="copy-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 9h10v12H9z" />
+          <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+        </svg>
+        <svg v-else class="copy-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4.5 12.5l5 5 10-10" />
+        </svg>
       </button>
     </td>
 
-    <td class="right muted created-col" data-label="Created">
-      {{ formatCreated(l.created_at) }}
-    </td>
   </tr>
 </tbody>
 </table>
@@ -145,7 +148,13 @@ onMounted(loadLeads);
 </template>
 
 <style scoped>
-.wrap{ display: grid; gap: 12px; }
+.wrap{
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: none;
+  margin: 0 auto;
+}
 
 .toolbar{
   display: grid;
@@ -189,33 +198,35 @@ onMounted(loadLeads);
 .table-wrap{
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 14px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .table{
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   table-layout: auto;
 }
 
 th, td{
   padding: 12px 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
+  vertical-align: middle;
+}
+
+th{
+  text-align: left;
 }
 
 .name-col{
   white-space: nowrap;
-  width: 28%;
-}
-
-.created-col{
-  white-space: nowrap;
-  width: 28%;
+  min-width: 220px;
 }
 
 .email-col{
-  width: auto;         /* take remaining width */
+  min-width: 460px;
 }
 
 /* Email cell: allow email text to shrink & ellipsize, keep Copy visible */
@@ -223,28 +234,80 @@ th, td{
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;        /* important for flex ellipsis */
+  min-width: 0;
 }
 
 .email-text{
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: max-content;
+  flex: 0 0 auto;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
+
+.copy-btn {
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 9px;
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.82);
+  cursor: pointer;
+}
 
 .email-cell:hover .copy-btn {
   opacity: 1;
 }
 
-/* Existing copy button hover behavior stays */
-.copy-btn {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  font-size: 12px;
-  padding: 4px 8px;
-  cursor: pointer;
+.copy-btn:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.95);
+}
+
+.copy-btn:active {
+  transform: translateY(1px);
+}
+
+.copy-btn:focus-visible {
+  outline: none;
+  border-color: rgba(255,255,255,0.35);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.16);
+}
+
+.copy-btn.is-copied {
+  border-color: rgba(124,255,178,0.65);
+  background: rgba(124,255,178,0.15);
+  color: #7CFFB2;
+}
+
+.copy-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    grid-template-columns: auto 1fr;
+  }
+
+  .count {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
 }
 </style>

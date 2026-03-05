@@ -116,6 +116,7 @@ onMounted(() => {
         :placeholder="emailPlaceholder"
         type="email"
         autocomplete="email"
+        maxlength="254"
         required
       />
     </div>

@@ -122,7 +122,7 @@ body{
 }
 
 .container{
-  max-width: 980px;
+  max-width: 1220px;
   margin: 0 auto;
 }
 
@@ -158,7 +158,11 @@ body{
 }
 
 @media (min-width: 880px){
-  .grid{ grid-template-columns: 360px minmax(880px, 1fr); align-items: start; }
+  .grid{
+    grid-template-columns: minmax(260px, 320px) minmax(0, 860px);
+    align-items: start;
+    justify-content: center;
+  }
 }
 
 .card{

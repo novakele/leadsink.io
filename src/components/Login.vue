@@ -3,9 +3,10 @@ import { onMounted, ref } from "vue";
 import { supabase } from "../lib/supabase";
 
 const email = ref("");
-const sent = ref(false);
+const password = ref("");
 const loading = ref(false);
 const error = ref<string | null>(null);
+const info = ref<string | null>(null);
 
 // Outbound Overachiever (from RPC)
 const ooLoading = ref(false);
@@ -53,9 +54,10 @@ async function copyOutboundOverachiever() {
       document.execCommand("copy");
       document.body.removeChild(ta);
     }
-
     ooCopied.value = true;
-    window.setTimeout(() => (ooCopied.value = false), 900);
+    window.setTimeout(() => {
+      ooCopied.value = false;
+    }, 1100);
   } catch {
     // silent
   }
@@ -87,34 +89,72 @@ ooName.value = first.display_name ?? "(no name)";
 ooEmail.value = first.email ?? "—";
 }
 
-async function sendMagicLink() {
+async function signInWithPassword() {
   error.value = null;
-  sent.value = false;
+  info.value = null;
 
   const e = email.value.trim().toLowerCase();
+  const p = password.value;
   if (!e) {
     error.value = "Email is required.";
+    return;
+  }
+  if (!p) {
+    error.value = "Password is required.";
     return;
   }
 
   loading.value = true;
 
-  const { error: err } = await supabase.auth.signInWithOtp({
+  const { error: signInErr } = await supabase.auth.signInWithPassword({
     email: e,
-    options: {
-      // Must be allowed in Supabase Auth URL configuration
-      emailRedirectTo: window.location.origin,
-    },
+    password: p,
+  });
+
+  if (!signInErr) {
+    loading.value = false;
+    password.value = "";
+    return;
+  }
+
+  const signInMsg = (signInErr.message ?? "").toLowerCase();
+  const shouldAttemptSignUp =
+    signInMsg.includes("invalid login credentials") ||
+    signInMsg.includes("user not found") ||
+    signInMsg.includes("email not confirmed");
+
+  if (!shouldAttemptSignUp) {
+    loading.value = false;
+    error.value = signInErr.message;
+    return;
+  }
+
+  const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+    email: e,
+    password: p,
   });
 
   loading.value = false;
 
-  if (err) {
-    error.value = err.message;
+  if (signUpErr) {
+    const signUpMsg = (signUpErr.message ?? "").toLowerCase();
+    if (signUpMsg.includes("already registered")) {
+      error.value = "Invalid email or password.";
+      return;
+    }
+    error.value = signUpErr.message;
     return;
   }
 
-  sent.value = true;
+  if (signUpData.session) {
+    // Project has email confirmation disabled; user is signed in immediately.
+    password.value = "";
+    return;
+  }
+
+  // Project has email confirmation enabled; account is created but not signed in yet.
+  info.value = "Account created. Check your inbox to confirm your email, then sign in.";
+  password.value = "";
 }
 
 onMounted(() => {
@@ -140,26 +180,36 @@ onMounted(() => {
         <section class="card">
           <div class="card-head">
             <h2 class="card-title">Sign in</h2>
-            <!-- <p class="card-help">We’ll email you a magic link.</p> -->
+            <p class="card-help">Use your email and password.</p>
           </div>
 
-          <form class="form" @submit.prevent="sendMagicLink">
+          <form class="form" @submit.prevent="signInWithPassword">
             <div class="field">
-              <!-- <label>Email</label> -->
               <input
                 v-model="email"
                 type="email"
                 autocomplete="email"
                 placeholder="you@company.com"
+                maxlength="254"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <input
+                v-model="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Password"
                 required
               />
             </div>
 
             <button class="btn primary" type="submit" :disabled="loading">
-              {{ loading ? "Sending…" : "Send magic link" }}
+              {{ loading ? "Signing in…" : "Sign in" }}
             </button>
 
-            <p v-if="sent" class="msg ok">Check your inbox for a login link.</p>
+            <p v-if="info" class="msg ok">{{ info }}</p>
             <p v-if="error" class="msg err">{{ error }}</p>
           </form>
         </section>
@@ -184,10 +234,19 @@ onMounted(() => {
 
   <button
     class="copy-btn spotlight-copy"
+    :class="{ 'is-copied': ooCopied }"
+    type="button"
     @click="copyOutboundOverachiever"
+    aria-label="Copy outbound overachiever"
+    title="Copy outbound overachiever"
   >
-    <span v-if="ooCopied">Copied</span>
-    <span v-else>Copy</span>
+    <svg v-if="!ooCopied" class="copy-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 9h10v12H9z" />
+      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+    </svg>
+    <svg v-else class="copy-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.5 12.5l5 5 10-10" />
+    </svg>
   </button>
 </div>
 
@@ -203,6 +262,20 @@ onMounted(() => {
 <style scoped>
 .spotlight-line-single{
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.spotlight-text{
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.email{
+  overflow-wrap: anywhere;
 }
 
 
@@ -211,6 +284,7 @@ onMounted(() => {
   opacity: 0;
   transition: opacity 0.15s ease;
   margin-left: auto;
+  flex: 0 0 auto;
 }
 
 /* Show on hover */
@@ -228,6 +302,7 @@ onMounted(() => {
 .container{
   width: 100%;
   max-width: 980px;
+  min-width: 0;
 }
 
 .header{
@@ -269,6 +344,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
+  min-width: 0;
 }
 
 @media (min-width: 880px){
@@ -285,6 +361,7 @@ onMounted(() => {
   box-shadow: 0 20px 60px rgba(0,0,0,0.45);
   padding: 16px;
   backdrop-filter: blur(10px);
+  min-width: 0;
 }
 
 .card-head{
@@ -404,10 +481,67 @@ input:focus{
 
 .copy-btn {
   opacity: 0;
-  transition: opacity 0.15s ease;
-  font-size: 12px;
-  padding: 4px 8px;
+  transition: opacity 0.15s ease, background 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 9px;
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.82);
   cursor: pointer;
+}
+
+.copy-btn:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.95);
+}
+
+.copy-btn:active {
+  transform: translateY(1px);
+}
+
+.copy-btn:focus-visible {
+  outline: none;
+  border-color: rgba(255,255,255,0.35);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.16);
+}
+
+.copy-btn.is-copied {
+  border-color: rgba(124,255,178,0.65);
+  background: rgba(124,255,178,0.15);
+  color: #7CFFB2;
+}
+
+.copy-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+@media (max-width: 640px) {
+  .spotlight-line-single {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .spotlight-copy {
+    margin-left: 0;
+  }
+}
+
+@media (hover: none) {
+  .spotlight-copy {
+    opacity: 1;
+  }
 }
 
 </style>
